@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import DataViewer from './DataViewer'
 
 export default function LogViewer() {
   const [logs, setLogs] = useState([])
@@ -33,22 +34,28 @@ export default function LogViewer() {
 
   return (
     <div className="max-w-7xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Real-Time API Logs</h1>
-      <div
-        ref={logContainerRef}
-        className="bg-gray-900 text-white p-4 rounded-md h-96 overflow-y-auto font-mono text-sm"
-      >
-        {logs.map((log, index) => (
-          <div key={index} className="border-b border-gray-700 py-2">
-            <span className="text-gray-400">
-              [{log.timestamp}]
-            </span>{' '}
-            <span className={log.level === 'error' ? 'text-red-400' : 'text-green-400'}>
-              {log.level.toUpperCase()}
-            </span>{' '}
-            {log.message}
+      <h1 className="text-2xl font-bold mb-4">API Monitoring</h1>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">Real-Time Logs</h2>
+          <div
+            ref={logContainerRef}
+            className="bg-gray-900 text-white p-4 rounded-md h-96 overflow-y-auto font-mono text-sm"
+          >
+            {logs.map((log, index) => (
+              <div key={index} className="border-b border-gray-700 py-2">
+                <span className="text-gray-400">
+                  [{log.timestamp}]
+                </span>{' '}
+                <span className={log.level === 'error' ? 'text-red-400' : 'text-green-400'}>
+                  {log.level.toUpperCase()}
+                </span>{' '}
+                {log.message}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+        <DataViewer />
       </div>
     </div>
   )

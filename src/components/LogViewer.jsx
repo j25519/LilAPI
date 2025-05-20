@@ -6,20 +6,38 @@ export default function LogViewer() {
   const logContainerRef = useRef(null)
 
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:3000')
+    let ws
+    let reconnectAttempts = 0
+    const maxReconnectAttempts = 5
+    const reconnectInterval = 3000 // 3 seconds
 
-    ws.onmessage = (event) => {
-      try {
-        const logEntry = JSON.parse(event.data)
-        setLogs((prev) => [...prev, logEntry])
-      } catch (err) {
-        console.error('Error parsing log:', err)
+    const connectWebSocket = () => {
+      ws = new WebSocket('ws://localhost:3000')
+
+      ws.onmessage = (event) => {
+        try {
+          const logEntry = JSON.parse(event.data)
+          setLogs((prev) => [...prev, logEntry])
+        } catch (err) {
+          console.error('Error parsing log:', err)
+        }
+      }
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected')
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++
+          setTimeout(connectWebSocket, reconnectInterval)
+        }
+      }
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err)
+        ws.close()
       }
     }
 
-    ws.onclose = () => {
-      console.log('WebSocket disconnected')
-    }
+    connectWebSocket()
 
     return () => {
       ws.close()

@@ -3,10 +3,13 @@ import { WebSocketServer } from 'ws'
 import fs from 'fs'
 import helmet from 'helmet'
 import cors from 'cors'
+import jwt from 'jsonwebtoken'
+import bcrypt from 'bcrypt'
+import rateLimit from 'express-rate-limit'
 import { logger } from './logger.js'
 import { authMiddleware } from './middleware.js'
 import { setupRoutes } from './routes.js'
-import { getItems, getUserByApiKey } from './db.js'
+import { getItems, getUserByEmail, getUserByApiKey } from './db.js'
 import 'dotenv/config'
 
 const app = express()
@@ -28,9 +31,9 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }))
 
-// CORS for Vite UI
+// CORS for Webflow site (update to production domain)
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: 'http://localhost:5173', // Change to 'https://your-webflow-site.webflow.io' in production
 }))
 
 // Cache-Control and Server headers
@@ -61,10 +64,52 @@ app.use((req, res, next) => {
   next()
 })
 
-// Proxy endpoint for UI to fetch items without client-side API key
+// JWT middleware
+const verifyJWT = (req, res, next) => {
+  const token = req.headers['authorization']?.split(' ')[1]
+  if (!token) {
+    logger.warn('Missing JWT token')
+    return res.status(401).json({ error: 'Authentication token required' })
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    req.user = decoded
+    next()
+  } catch (err) {
+    logger.warn('Invalid JWT token')
+    return res.status(401).json({ error: 'Invalid authentication token' })
+  }
+}
+
+// Login endpoint
+app.post('/login', async (req, res, next) => {
+  const { email, password } = req.body
+  if (!email || !password) {
+    logger.warn('Missing login credentials')
+    return res.status(400).json({ error: 'Email and password required' })
+  }
+  try {
+    const user = await getUserByEmail(email)
+    if (!user || !user.password) {
+      logger.warn('Invalid login credentials')
+      return res.status(401).json({ error: 'Invalid credentials' })
+    }
+    const isMatch = await bcrypt.compare(password, user.password)
+    if (!isMatch) {
+      logger.warn('Invalid login credentials')
+      return res.status(401).json({ error: 'Invalid credentials' })
+    }
+    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' })
+    res.json({ token })
+  } catch (err) {
+    logger.error(`Login error: ${err.message}`)
+    next(err)
+  }
+})
+
+// Proxy endpoint for UI (dev mode, server-side API_KEY auth)
 app.get('/proxy/data', async (req, res, next) => {
   try {
-    // Authenticate server-side using API_KEY from .env
     const user = await getUserByApiKey(process.env.API_KEY)
     if (!user) {
       logger.warn('Invalid server API key')
@@ -76,6 +121,28 @@ app.get('/proxy/data', async (req, res, next) => {
     logger.error(`Proxy error: ${err.message}`)
     next(err)
   }
+})
+
+// Secure proxy endpoint for Webflow (production, JWT auth, rate limiting)
+app.get('/secure/proxy/data', 
+  rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit to 100 requests per IP
+  }),
+  verifyJWT,
+  async (req, res, next) => {
+    try {
+      const user = await getUserByApiKey(process.env.API_KEY)
+      if (!user) {
+        logger.warn('Invalid server API key')
+        return res.status(401).json({ error: 'Invalid server API key' })
+      }
+      const items = await getItems()
+      res.json(items)
+    } catch (err) {
+      logger.error(`Proxy error: ${err.message}`)
+      next(err)
+    }
 })
 
 setupRoutes(app, authMiddleware)
@@ -109,7 +176,7 @@ wss.on('connection', (ws) => {
     if (eventType === 'change') {
       fs.readFile('logs/app.log', 'utf8', (err, data) => {
         if (!err) {
-          const lines = data.split('\n').slice(-2) // Send last line
+          const lines = data.split('\n').slice(-2)
           lines.forEach(line => {
             if (line) ws.send(line)
           })

@@ -1,5 +1,6 @@
 import sqlite3 from 'sqlite3'
 import 'dotenv/config'
+import bcrypt from 'bcrypt'
 
 const db = new sqlite3.Database(':memory:', (err) => {
   if (err) {
@@ -23,14 +24,41 @@ db.serialize(() => {
     )
   `)
 
-  db.run(`INSERT OR IGNORE INTO users (apiKey) VALUES (?)`, [process.env.API_KEY])
+  // Hash the API key before storing
+  if (process.env.API_KEY) {
+    bcrypt.hash(process.env.API_KEY, 10, (err, hashedKey) => {
+      if (err) {
+        console.error('Error hashing API key:', err.message)
+        return
+      }
+      db.run(`INSERT OR IGNORE INTO users (apiKey) VALUES (?)`, [hashedKey], (err) => {
+        if (err) {
+          console.error('Error inserting hashed API key:', err.message)
+        }
+      })
+    })
+  } else {
+    console.error('API_KEY not found in .env')
+  }
 })
 
-export const getUserByApiKey = (apiKey) => {
+export const getUserByApiKey = async (apiKey) => {
   return new Promise((resolve, reject) => {
-    db.get(`SELECT * FROM users WHERE apiKey = ?`, [apiKey], (err, row) => {
-      if (err) reject(err)
-      resolve(row)
+    db.get(`SELECT * FROM users WHERE id = 1`, async (err, row) => {
+      if (err) {
+        reject(err)
+        return
+      }
+      if (!row) {
+        resolve(null)
+        return
+      }
+      try {
+        const isMatch = await bcrypt.compare(apiKey, row.apiKey)
+        resolve(isMatch ? row : null)
+      } catch (err) {
+        reject(err)
+      }
     })
   })
 }

@@ -6,11 +6,7 @@ export default function DataViewer() {
 
   const fetchItems = async () => {
     try {
-      const response = await fetch('/api/data', {
-        headers: {
-          'x-api-key': 'test-api-key-123', // Hardcoded for simplicity
-        },
-      })
+      const response = await fetch('/proxy/data')
       if (!response.ok) {
         throw new Error('Failed to fetch items')
       }

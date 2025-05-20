@@ -26,10 +26,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:3000',
+      '/proxy': 'http://localhost:3000',
     },
     headers: {
       'Server': 'LilAPI UI',
-      'X-Powered-By': 'Monster Energy'
+      'X-Powered-By': 'Monster Energy',
     },
   },
 })

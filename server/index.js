@@ -6,6 +6,8 @@ import cors from 'cors'
 import { logger } from './logger.js'
 import { authMiddleware } from './middleware.js'
 import { setupRoutes } from './routes.js'
+import { getItems, getUserByApiKey } from './db.js'
+import 'dotenv/config'
 
 const app = express()
 const port = 3000
@@ -57,6 +59,23 @@ app.use(express.json())
 app.use((req, res, next) => {
   logger.info(`Request: ${req.method} ${req.url}`)
   next()
+})
+
+// Proxy endpoint for UI to fetch items without client-side API key
+app.get('/proxy/data', async (req, res, next) => {
+  try {
+    // Authenticate server-side using API_KEY from .env
+    const user = await getUserByApiKey(process.env.API_KEY)
+    if (!user) {
+      logger.warn('Invalid server API key')
+      return res.status(401).json({ error: 'Invalid server API key' })
+    }
+    const items = await getItems()
+    res.json(items)
+  } catch (err) {
+    logger.error(`Proxy error: ${err.message}`)
+    next(err)
+  }
 })
 
 setupRoutes(app, authMiddleware)

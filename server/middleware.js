@@ -11,7 +11,7 @@ export const authMiddleware = async (req, res, next) => {
   try {
     const user = await getUserByApiKey(apiKey)
     if (!user) {
-      logger.warn(`Invalid API key: ${apiKey}`)
+      logger.warn(`Invalid API key`)
       return res.status(401).json({ error: 'Invalid API key' })
     }
     next()

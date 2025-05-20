@@ -1,12 +1,56 @@
 import express from 'express'
 import { WebSocketServer } from 'ws'
 import fs from 'fs'
+import helmet from 'helmet'
+import cors from 'cors'
 import { logger } from './logger.js'
 import { authMiddleware } from './middleware.js'
 import { setupRoutes } from './routes.js'
 
 const app = express()
 const port = 3000
+
+// Security headers via helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      objectSrc: ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}))
+
+// CORS for Vite UI
+app.use(cors({
+  origin: 'http://localhost:5173',
+}))
+
+// Cache-Control and Server headers
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.setHeader('Server', 'LilAPI')
+  next()
+})
+
+// Pretty print the JSON with newline after for clean terminal output
+app.set('json spaces', 2)
+
+// Add newline to JSON responses for clean curl output
+app.use((req, res, next) => {
+  const originalJson = res.json
+  res.json = function (obj) {
+    res.setHeader('Content-Type', 'application/json')
+    res.send(JSON.stringify(obj, null, 2) + '\n')
+    return res
+  }
+  next()
+})
 
 app.use(express.json())
 
